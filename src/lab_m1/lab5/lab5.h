@@ -36,7 +36,7 @@ namespace m1
         bool renderCameraTarget;
 
         // TODO(student): If you need any other class variables, define them here.
-        GLfloat right, left, top, bottom, fov, zNear, zFar, copy;
+        GLfloat right, left, top, bottom, fov, zNear, zFar, copy1;
 
     };
 }   // namespace m1
