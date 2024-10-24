@@ -44,6 +44,9 @@ void Lab3::Init()
     // `corner` and `squareSide`. These two class variables will be used
     // in the `Update()` function. Think about it, why do you need them?
 
+	cx = corner.x + squareSide / 2;
+	cy = corner.y + squareSide / 2;
+
     // Initialize tx and ty (the translation steps)
     translateX = 0;
     translateY = 0;
@@ -63,6 +66,12 @@ void Lab3::Init()
 
     Mesh* square3 = object2D::CreateSquare("square3", corner, squareSide, glm::vec3(0, 0, 1));
     AddMeshToList(square3);
+
+    Mesh* square4 = object2D::CreateSquare("square4", corner, squareSide, glm::vec3(0, 0, 1), true);
+    AddMeshToList(square4);
+
+    Mesh* square5 = object2D::CreateSquare("square5", corner, squareSide, glm::vec3(0, 0, 1), true);
+    AddMeshToList(square5);
 }
 
 
@@ -122,7 +131,9 @@ void Lab3::Update(float deltaTimeSeconds)
 	if (scaleUp) {
 		scaleX += deltaTimeSeconds;
 		scaleY += deltaTimeSeconds;
+		modelMatrix *= transform2D::Translate(cx, cy);
 		modelMatrix *= transform2D::Scale(scaleX, scaleY);
+		modelMatrix *= transform2D::Translate(-cx, -cy);
 
 		if (scaleX > 2) {
 			scaleUp = GL_FALSE;
@@ -131,7 +142,9 @@ void Lab3::Update(float deltaTimeSeconds)
 	else {
 		scaleX -= deltaTimeSeconds;
 		scaleY -= deltaTimeSeconds;
+		modelMatrix *= transform2D::Translate(cx, cy);
 		modelMatrix *= transform2D::Scale(scaleX, scaleY);
+		modelMatrix *= transform2D::Translate(-cx, -cy);
         
 		if (scaleX < -2) {
 			scaleUp = GL_TRUE;
@@ -141,16 +154,29 @@ void Lab3::Update(float deltaTimeSeconds)
 
     RenderMesh2D(meshes["square2"], shaders["VertexColor"], modelMatrix);
 
-    modelMatrix = glm::mat3(1);
-    modelMatrix *= transform2D::Translate(650, 250);
-    // TODO(student): Create animations by multiplying the current
-    // transform matrix with the matrices you just implemented
-    // Remember, the last matrix in the chain will take effect first!
+    {
+        modelMatrix = glm::mat3(1);
+        modelMatrix *= transform2D::Translate(650, 250);
 
-    angularStep += deltaTimeSeconds;
-    modelMatrix *= transform2D::Rotate(angularStep);
+        angularStep += deltaTimeSeconds;
+        modelMatrix *= transform2D::Translate(cx, cy);
+        modelMatrix *= transform2D::Rotate(angularStep);
+        modelMatrix *= transform2D::Translate(-cx, -cy);
+        RenderMesh2D(meshes["square3"], shaders["VertexColor"], modelMatrix);
 
-    RenderMesh2D(meshes["square3"], shaders["VertexColor"], modelMatrix);
+		modelMatrix *= transform2D::Translate(cx, cy);
+		modelMatrix *= transform2D::Rotate(angularStep);
+		modelMatrix *= transform2D::Translate(100 * 1.5, 100 * 1.5);
+		modelMatrix *= transform2D::Translate(-cx, -cy);
+		RenderMesh2D(meshes["square4"], shaders["VertexColor"], modelMatrix);
+
+
+		modelMatrix *= transform2D::Translate(cx, cy);
+		modelMatrix *= transform2D::Rotate(angularStep);
+		modelMatrix *= transform2D::Translate(100 * 1.25, 100 * 1.25);
+		modelMatrix *= transform2D::Translate(-cx, -cy);
+		RenderMesh2D(meshes["square5"], shaders["VertexColor"], modelMatrix);
+    }
 }
 
 
