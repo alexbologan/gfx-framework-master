@@ -26,6 +26,8 @@ Lab8::~Lab8()
 
 void Lab8::Init()
 {
+	spot_light = 0;
+
     {
         Mesh* mesh = new Mesh("box");
         mesh->LoadMesh(PATH_JOIN(window->props.selfDir, RESOURCE_PATH::MODELS, "primitives"), "box.obj");
@@ -163,6 +165,8 @@ void Lab8::RenderSimpleMesh(Mesh *mesh, Shader *shader, const glm::mat4 & modelM
     glUniform3f(object_color, color.r, color.g, color.b);
 
     // TODO(student): Set any other shader uniforms that you need
+	GLint is_spotlight = glGetUniformLocation(shader->program, "spot_light");
+	glUniform1i(is_spotlight, spot_light);
 
     // Bind model matrix
     GLint loc_model_matrix = glGetUniformLocation(shader->program, "Model");
@@ -220,6 +224,10 @@ void Lab8::OnKeyPress(int key, int mods)
     // Add key press event
 
     // TODO(student): Set keys that you might need
+	if (key == GLFW_KEY_F)
+	{
+		spot_light ^= 1;
+	}
 
 }
 
