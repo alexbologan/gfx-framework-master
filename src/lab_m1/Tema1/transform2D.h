@@ -40,5 +40,15 @@ namespace transform2D
             0, 0, 1
         );
     }
+
+    inline glm::mat3 Shear(float shearX, float shearY)
+    {
+        return glm::mat3(
+            1, shearY, 0,
+            shearX, 1, 0,
+            0, 0, 1
+        );
+    }
+
 }   // namespace transform2D
 

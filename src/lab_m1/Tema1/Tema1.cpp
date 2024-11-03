@@ -1,7 +1,8 @@
-#include "lab_m1/Tema1/Tema1.h"
+﻿#include "lab_m1/Tema1/Tema1.h"
 
 #include <vector>
 #include <iostream>
+#include <cmath>
 
 #include "lab_m1/Tema1/transform2D.h"
 #include "lab_m1/lab3/object2D.h"
@@ -26,9 +27,31 @@ Tema1::~Tema1()
 }
 
 
+
+float TerrainFunction(float x) {
+	float A1 = 10, A2 = 10, A3 = 5, A4 = 5;  // Amplitudes
+	float W1 = 0.017, W2 = 0.032, W3 = 0.025, W4 = 0.0425;  // Frequencies
+    return A1 * sin(W1 * x) + A2 * sin(W2 * x) + A3 * sin(W3 * x) + A4 * sin(W4 * x);
+}
+
 void Tema1::Init()
 {
     glm::ivec2 resolution = window->GetResolution();
+	printf("Resolution: %d %d\n", resolution.x, resolution.y);
+    //heightMap(resolution.x / 10);  // Adjust as needed
+
+    for (float x = 0; x <= resolution.x; x += 1) {  // Adjust step as needed
+        heightMap.push_back(10 * TerrainFunction(x/2));  // Store sampled height
+    }
+
+	tank_x1 = 300.1f;
+	tank_y1 = heightMap[tank_x1];
+	cannon_angle1 = 0;
+
+	tank_x2 = 1100.1f;
+	tank_y2 = heightMap[tank_x2];
+	cannon_angle2 = 180;
+
     auto camera = GetSceneCamera();
     camera->SetOrthographic(0, (float)resolution.x, 0, (float)resolution.y, 0.01f, 400);
     camera->SetPosition(glm::vec3(0, 0, 50));
@@ -58,20 +81,48 @@ void Tema1::Init()
     // Initialize angularStep
     angularStep = 0;
 
-    Mesh* square1 = object2D::CreateSquare("square1", corner, squareSide, glm::vec3(1, 0, 0), true);
-    AddMeshToList(square1);
+	Mesh* square1 = object2D::CreateSquare("square1", corner, 4, glm::vec3(1, 1, 1), true);
+	AddMeshToList(square1);
 
-    Mesh* square2 = object2D::CreateSquare("square2", corner, squareSide, glm::vec3(0, 1, 0));
-    AddMeshToList(square2);
-
-    Mesh* square3 = object2D::CreateSquare("square3", corner, squareSide, glm::vec3(0, 0, 1));
-    AddMeshToList(square3);
-
-    Mesh* square4 = object2D::CreateSquare("square4", corner, squareSide, glm::vec3(0, 0, 1), true);
+    Mesh* square4 = object2D::CreateSquare("square4", corner, squareSide, glm::vec3(0.1294, 0.2588, 0.6941), true);
     AddMeshToList(square4);
 
-    Mesh* square5 = object2D::CreateSquare("square5", corner, squareSide, glm::vec3(0, 0, 1), true);
+    Mesh* square5 = object2D::CreateSquare("square5", corner, squareSide, glm::vec3(0.4980, 0.6941, 0.1294), true);
     AddMeshToList(square5);
+
+	// Create the meshes for the first tank
+	Mesh* bottomTrapezoid_1 = object2D::CreateTrapezoid("bottomTrapezoid_1",
+                                       corner, 50, 70, 10, glm::vec3(0.4588, 0.3961, 0.3058), true);
+	AddMeshToList(bottomTrapezoid_1);
+
+	Mesh* topTrapezoid_1 = object2D::CreateTrapezoid("topTrapezoid_1",
+		                               corner, 80, 100, 22, glm::vec3(0.8039, 0.6823, 0.5333), true);
+	AddMeshToList(topTrapezoid_1);
+
+	Mesh* turret_1 = object2D::CreateDisk("turret_1", corner, 15, glm::vec3(0.8039, 0.6823, 0.5333));
+	AddMeshToList(turret_1);
+
+	Mesh* cannon_1 = object2D::CreateRectangle("cannon_1", corner, 40, 4, glm::vec3(0, 0, 0), true);
+	AddMeshToList(cannon_1);
+
+
+	// Create the meshes for the second tank
+	Mesh* bottomTrapezoid_2 = object2D::CreateTrapezoid("bottomTrapezoid_2",
+		                               corner, 50, 70, 10, glm::vec3(0.1608, 0.1608, 0.1765), true);
+	AddMeshToList(bottomTrapezoid_2);
+
+	Mesh* topTrapezoid_2 = object2D::CreateTrapezoid("topTrapezoid_2",
+		                               corner, 80, 100, 22, glm::vec3(0.3059, 0.3882, 0.2275), true);
+	AddMeshToList(topTrapezoid_2);
+
+	Mesh* turret_2 = object2D::CreateDisk("turret_2", corner, 15, glm::vec3(0.3059, 0.3882, 0.2275));
+	AddMeshToList(turret_2);
+
+	Mesh* cannon_2 = object2D::CreateRectangle("cannon_2", corner, 40, 4, glm::vec3(0, 0, 0), true);
+	AddMeshToList(cannon_2);
+
+	Mesh* projectile = object2D::CreateDisk("projectile", corner, 5, glm::vec3(0, 0, 0));
+	AddMeshToList(projectile);
 }
 
 
@@ -86,97 +137,312 @@ void Tema1::FrameStart()
     glViewport(0, 0, resolution.x, resolution.y);
 }
 
+float Tema1::GetHeight(float x) {
+	float t1 = (x - floor(x)) / (ceil(x) - floor(x));
+	float y = 300 + heightMap[floor(x)] + t1 * (heightMap[ceil(x)] - heightMap[floor(x)]);
+	return y;
+}
+
+void Tema1::DrawTrajectoryLine(float x, float y, float cannon_angle, float angle, float deltaTime) {
+	float density = 40.0f;
+
+	float initialVelocityX = initialVelocity * cos(cannon_angle);
+	float initialVelocityY = initialVelocity * sin(cannon_angle);
+
+	std::vector<glm::vec2> trajectoryPoints;
+
+	while (density > 0) {
+		x += initialVelocityX * deltaTime;
+		y += initialVelocityY * deltaTime;
+
+		initialVelocityY -= gravity * deltaTime;
+		
+		if (x < 1 || x > 1280 - 1 || y < 1 || y > 720 - 1 || y < GetHeight(x)) {
+			break;
+		}
+
+		trajectoryPoints.push_back(glm::vec2(x, y));
+
+		density -= deltaTime;
+	}
+
+	// Render the line using squares
+	for (size_t i = 1; i < trajectoryPoints.size(); ++i) {
+		glm::vec2 point = trajectoryPoints[i];
+
+		glm::mat3 modelMatrix = glm::mat3(1);
+		modelMatrix *= transform2D::Translate(point.x, point.y);
+
+		RenderMesh2D(meshes["square1"], shaders["VertexColor"], modelMatrix);
+	}
+}
+
+void Tema1::LaunchProjectile(float x, float y, float cannon_angle, float angle) {
+	Projectile newProjectile;
+	newProjectile.position = glm::vec2(x, y);
+	newProjectile.velocity = glm::vec2(cos(cannon_angle), sin(cannon_angle)) * initialVelocity;
+	newProjectile.angle = angle;
+	newProjectile.isActive = true;
+	projectiles.push_back(newProjectile);
+}
+
+void Tema1::DeformTerrain(float impactX, float impactY, float radius) {
+	float radiusSquared = radius * radius;
+
+	int startX = impactX - radius;
+	int endX = impactX + radius;
+
+	for (float x = startX; x < endX; x++) {
+		if (x < 0 || x > 1280) {
+			continue;
+		}
+
+		float distanceSquared = (x - impactX) * (x - impactX);
+
+		if (distanceSquared <= radiusSquared) {
+			float deviation = sqrt(radiusSquared - distanceSquared);
+
+			float currentHeight = heightMap[x] + 300;
+			float newHeight = impactY - deviation;
+			
+			if (currentHeight > newHeight) {
+				heightMap[x] = newHeight - 300;
+			}
+		}
+	}
+}
+
+void Tema1::UpdateProjectile(float deltaTime, float enemyX) {
+	for (auto it = projectiles.begin(); it != projectiles.end();) {
+		if (it->isActive) {
+			it->position += it->velocity * deltaTime * 5.0f;
+
+			it->velocity.y -= gravity * deltaTime * 5.0f;
+
+			if (it->position.x < 0) {
+				it->position.x = 0;
+				it->velocity.x = -it->velocity.x;
+			}
+
+			if (it->position.x > 1280) {
+				it->position.x = 1280;
+				it->velocity.x = -it->velocity.x;
+			}
+
+			if (it->position.y > 720) {
+				it->position.y = 720;
+				it->velocity.y = -it->velocity.y;
+			}
+
+			if (it->position.y < 0) {
+				it = projectiles.erase(it);
+				continue;
+			}
+
+			if (distance(it->position, glm::vec2(enemyX, GetHeight(enemyX))) < 50) {
+				//DeformTerrain(it->position.x, it->position.y, 40);
+				it = projectiles.erase(it);
+				continue;
+			}
+			
+			float terrainHeight = GetHeight(it->position.x);
+			if (terrainHeight > it->position.y) {
+				DeformTerrain(it->position.x, it->position.y, 40);
+				it = projectiles.erase(it);
+				continue;
+			}
+		}
+		++it;
+	}
+}
+
+void Tema1::RenderTank_1(float deltaTime) {
+	float x = tank_x1;
+	float y = GetHeight(tank_x1);
+
+	float yV = GetHeight(tank_x1 + 1) - GetHeight(tank_x1);
+	float xV = 1;
+	float angle;
+	if (y < 0) {
+		y = 0.001f;
+		angle = 0;
+	}
+	else {
+		angle = atan2(yV, xV);
+	}
+
+	// Draw bottom trapezoid
+	glm::mat3 modelMatrix = glm::mat3(1);
+    modelMatrix *= transform2D::Translate(x - 35, y - 10);
+	modelMatrix *= transform2D::Translate(35, 10);
+    modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Rotate(glm::radians(180.0f));
+	modelMatrix *= transform2D::Translate(-35, -10);
+
+	RenderMesh2D(meshes["bottomTrapezoid_1"], shaders["VertexColor"], modelMatrix);
+
+	// Draw top trapezoid
+    modelMatrix = glm::mat3(1);
+    modelMatrix *= transform2D::Translate(x - 50, y + 10);
+    modelMatrix *= transform2D::Translate(50, -10);
+    modelMatrix *= transform2D::Rotate(angle);
+    modelMatrix *= transform2D::Translate(-50, 10);
+	RenderMesh2D(meshes["topTrapezoid_1"], shaders["VertexColor"], modelMatrix);
+
+    // Draw turret (arc)
+    modelMatrix = glm::mat3(1);
+    modelMatrix *= transform2D::Translate(x, y + 32);
+    modelMatrix *= transform2D::Translate(0, -32);
+    modelMatrix *= transform2D::Rotate(angle);
+    modelMatrix *= transform2D::Translate(0, 32);
+	RenderMesh2D(meshes["turret_1"], shaders["VertexColor"], modelMatrix);
+
+    // Draw cannon (rectangle)
+    modelMatrix = glm::mat3(1);
+    modelMatrix *= transform2D::Translate(x, y + 38);
+    modelMatrix *= transform2D::Translate(0, -38);
+    modelMatrix *= transform2D::Rotate(angle);
+    modelMatrix *= transform2D::Translate(0, 38);
+	glm::vec3 cannon_pos = modelMatrix * glm::vec3(0, 0, 1);
+    modelMatrix *= transform2D::Translate(0, 2);
+	modelMatrix *= transform2D::Rotate(glm::radians(cannon_angle1) - angle);
+    modelMatrix *= transform2D::Translate(0, -2);
+
+    RenderMesh2D(meshes["cannon_1"], shaders["VertexColor"], modelMatrix);
+
+	
+	// Compute the position of the cannon's tip
+	float tip_pos_x = cos(glm::radians(cannon_angle1)) * 40 + cannon_pos.x;
+	float tip_pos_y = sin(glm::radians(cannon_angle1)) * 40 + cannon_pos.y;
+
+	// Launch projectile
+	if (isSpacePressed) {
+		LaunchProjectile(tip_pos_x, tip_pos_y, glm::radians(cannon_angle1), angle);
+		isSpacePressed = false;
+	}
+
+	UpdateProjectile(deltaTime, tank_x2);
+
+	for (Projectile& projectile : projectiles) {
+		if (projectile.isActive) {
+			glm::mat3 modelMatrix = glm::mat3(1);
+			modelMatrix *= transform2D::Translate(projectile.position.x, projectile.position.y);
+			RenderMesh2D(meshes["projectile"], shaders["VertexColor"], modelMatrix);
+		}
+	}
+
+	// Draw trajectory line
+	DrawTrajectoryLine(tip_pos_x, tip_pos_y, glm::radians(cannon_angle1), angle, deltaTime);
+
+	// Draw life bar
+	modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x - 50, y + 60);
+	modelMatrix *= transform2D::Translate(50, -60);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Translate(-50, 60);
+	modelMatrix *= transform2D::Scale(25, 4);
+	RenderMesh2D(meshes["square1"], shaders["VertexColor"], modelMatrix);
+}
+
+void Tema1::RenderTank_2(float deltaTime) {
+	float x = tank_x2;
+	float y = GetHeight(tank_x2);
+
+	float yV = GetHeight(x + 1) - GetHeight(x);
+	float xV = 1;
+	float angle;
+	if (y < 0) {
+		y = 0.001f;
+		angle = 0;
+	}
+	else {
+		angle = atan2(yV, xV);
+	}
+
+	// Draw bottom trapezoid
+	glm::mat3 modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x - 35, y - 10);
+	modelMatrix *= transform2D::Translate(35, 10);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Rotate(glm::radians(180.0f));
+	modelMatrix *= transform2D::Translate(-35, -10);
+
+	RenderMesh2D(meshes["bottomTrapezoid_2"], shaders["VertexColor"], modelMatrix);
+
+	// Draw top trapezoid
+	modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x - 50, y + 10);
+	modelMatrix *= transform2D::Translate(50, -10);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Translate(-50, 10);
+	RenderMesh2D(meshes["topTrapezoid_2"], shaders["VertexColor"], modelMatrix);
+
+	// Draw turret (arc)
+	modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x, y + 32);
+	modelMatrix *= transform2D::Translate(0, -32);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Translate(0, 32);
+	RenderMesh2D(meshes["turret_2"], shaders["VertexColor"], modelMatrix);
+
+	// Draw cannon (rectangle)
+	modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x, y + 38);
+	modelMatrix *= transform2D::Translate(0, -38);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Translate(0, 38);
+	glm::vec3 cannon_pos = modelMatrix * glm::vec3(0, 0, 1);
+	modelMatrix *= transform2D::Translate(0, 2);
+	modelMatrix *= transform2D::Rotate(glm::radians(cannon_angle2) - angle);
+	modelMatrix *= transform2D::Translate(0, -2);
+
+	RenderMesh2D(meshes["cannon_2"], shaders["VertexColor"], modelMatrix);
+
+	float tip_pos_x = cos(glm::radians(cannon_angle2)) * 40 + cannon_pos.x;
+	float tip_pos_y = sin(glm::radians(cannon_angle2)) * 40 + cannon_pos.y;
+
+	if (isEnterPressed) {
+		LaunchProjectile(tip_pos_x, tip_pos_y, glm::radians(cannon_angle2), angle);
+		isEnterPressed = false;
+	}
+
+	UpdateProjectile(deltaTime, tank_x1);
+
+	for (Projectile& projectile : projectiles) {
+		if (projectile.isActive) {
+			glm::mat3 modelMatrix = glm::mat3(1);
+			modelMatrix *= transform2D::Translate(projectile.position.x, projectile.position.y);
+			RenderMesh2D(meshes["projectile"], shaders["VertexColor"], modelMatrix);
+		}
+	}
+
+	DrawTrajectoryLine(tip_pos_x, tip_pos_y, glm::radians(cannon_angle2), angle, deltaTime);
+}
+
 
 void Tema1::Update(float deltaTimeSeconds)
 {
-    // TODO(student): Update steps for translation, rotation and scale,
-    // in order to create animations. Use the class variables in the
-    // class header, and if you need more of them to complete the task,
-    // add them over there!
+    for (float i = 0; i < heightMap.size() - 1; ++i) {
+        float x1 = i;
+        float y1 = heightMap[i];
+        float x2 = (i + 1);
+        float y2 = heightMap[i + 1];
 
-    modelMatrix = glm::mat3(1);
-    modelMatrix *= transform2D::Translate(150, 250);
-
-    // TODO(student): Create animations by multiplying the current
-    // transform matrix with the matrices you just implemented.
-    // Remember, the last matrix in the chain will take effect first!
-
-    if (moveDiagonal) {
-        translateX += deltaTimeSeconds * 50;
-        translateY += deltaTimeSeconds * 50;
-        modelMatrix *= transform2D::Translate(translateX, translateY);
-
-        if (translateX > 100) {
-            moveDiagonal = GL_FALSE;
-        }
-    }
-    else {
-        translateX -= deltaTimeSeconds * 50;
-        translateY -= deltaTimeSeconds * 50;
-        modelMatrix *= transform2D::Translate(translateX, translateY);
-
-        if (translateX < -100) {
-            moveDiagonal = GL_TRUE;
-        }
-    }
-    RenderMesh2D(meshes["square1"], shaders["VertexColor"], modelMatrix);
-
-
-    modelMatrix = glm::mat3(1);
-    modelMatrix *= transform2D::Translate(400, 250);
-    // TODO(student): Create animations by multiplying the current
-    // transform matrix with the matrices you just implemented
-    // Remember, the last matrix in the chain will take effect first!
-
-    if (scaleUp) {
-        scaleX += deltaTimeSeconds;
-        scaleY += deltaTimeSeconds;
-        modelMatrix *= transform2D::Translate(cx, cy);
-        modelMatrix *= transform2D::Scale(scaleX, scaleY);
-        modelMatrix *= transform2D::Translate(-cx, -cy);
-
-        if (scaleX > 2) {
-            scaleUp = GL_FALSE;
-        }
-    }
-    else {
-        scaleX -= deltaTimeSeconds;
-        scaleY -= deltaTimeSeconds;
-        modelMatrix *= transform2D::Translate(cx, cy);
-        modelMatrix *= transform2D::Scale(scaleX, scaleY);
-        modelMatrix *= transform2D::Translate(-cx, -cy);
-
-        if (scaleX < -2) {
-            scaleUp = GL_TRUE;
-        }
-    }
-
-
-    RenderMesh2D(meshes["square2"], shaders["VertexColor"], modelMatrix);
-
-    {
-        modelMatrix = glm::mat3(1);
-        modelMatrix *= transform2D::Translate(650, 250);
-
-        angularStep += deltaTimeSeconds;
-        modelMatrix *= transform2D::Translate(cx, cy);
-        modelMatrix *= transform2D::Rotate(angularStep);
-        modelMatrix *= transform2D::Translate(-cx, -cy);
-        RenderMesh2D(meshes["square3"], shaders["VertexColor"], modelMatrix);
-
-        modelMatrix *= transform2D::Translate(cx, cy);
-        modelMatrix *= transform2D::Rotate(angularStep);
-        modelMatrix *= transform2D::Translate(100 * 1.5, 100 * 1.5);
-        modelMatrix *= transform2D::Translate(-cx, -cy);
-        RenderMesh2D(meshes["square4"], shaders["VertexColor"], modelMatrix);
-
-
-        modelMatrix *= transform2D::Translate(cx, cy);
-        modelMatrix *= transform2D::Rotate(angularStep);
-        modelMatrix *= transform2D::Translate(100 * 1.25, 100 * 1.25);
-        modelMatrix *= transform2D::Translate(-cx, -cy);
+        glm::mat3 modelMatrix = glm::mat3(1);
+        modelMatrix *= transform2D::Translate(x1, y1 + 300);
+		modelMatrix *= transform2D::Shear(0, (y2 - y1) / (x2 - x1));
+        modelMatrix *= transform2D::Scale((x2 - x1) / 100, -10);
+        
         RenderMesh2D(meshes["square5"], shaders["VertexColor"], modelMatrix);
     }
+
+	RenderTank_1(deltaTimeSeconds);
+
+	RenderTank_2(deltaTimeSeconds);
+
+    modelMatrix = glm::mat3(1);
+    modelMatrix *= transform2D::Scale(100, 100);
+    RenderMesh2D(meshes["square4"], shaders["VertexColor"], modelMatrix);
 }
 
 
@@ -193,12 +459,61 @@ void Tema1::FrameEnd()
 
 void Tema1::OnInputUpdate(float deltaTime, int mods)
 {
+	// Inputs for the first tank
+	if (window->KeyHold(GLFW_KEY_A)) {
+		if (tank_x1 > 15) {
+			tank_x1 -= 90 * deltaTime;
+		}
+	}
+	if (window->KeyHold(GLFW_KEY_D)) {
+		if (tank_x1 < 1280 - 15) {
+			tank_x1 += 90 * deltaTime;
+		}
+	}
+	if (window->KeyHold(GLFW_KEY_W)) {
+		//if (cannon_angle1 < 180) {
+			cannon_angle1 += 50 * deltaTime;
+		//}
+	}
+	if (window->KeyHold(GLFW_KEY_S)) {
+		//if (cannon_angle1 > 0) {
+			cannon_angle1 -= 50 * deltaTime;
+		//}
+	}
+
+	// Inputs for the second tank
+	if (window->KeyHold(GLFW_KEY_LEFT)) {
+		if (tank_x2 > 15) {
+			tank_x2 -= 90 * deltaTime;
+		}
+	}
+	if (window->KeyHold(GLFW_KEY_RIGHT)) {
+		if (tank_x2 < 1280 - 15) {
+			tank_x2 += 90 * deltaTime;
+		}
+	}
+	if (window->KeyHold(GLFW_KEY_UP)) {
+		//if (cannon_angle2 < 180) {
+			cannon_angle2 += 50 * deltaTime;
+		//}
+	}
+	if (window->KeyHold(GLFW_KEY_DOWN)) {
+		//if (cannon_angle2 > 0) {
+			cannon_angle2 -= 50 * deltaTime;
+		//}
+	}
 }
 
 
 void Tema1::OnKeyPress(int key, int mods)
 {
-    // Add key press event
+	if (key == GLFW_KEY_SPACE) {
+		isSpacePressed = true;
+	}
+
+	if (key == GLFW_KEY_ENTER) {
+		isEnterPressed = true;
+	}
 }
 
 

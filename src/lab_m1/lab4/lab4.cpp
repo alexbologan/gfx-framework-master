@@ -61,6 +61,37 @@ void Lab4::FrameStart()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
+void Lab4::RenderRecursiveMesh(glm::mat4 modelMatrix, int level) {
+    if (level == 0) {
+        return;  // Base case: stop recursion after 5 levels
+    }
+
+    // Prepare the transformation for the left child
+    glm::mat4 modelMatrixLeft = glm::mat4(1.0f);
+    modelMatrixLeft *= transform3D::Translate(-0.2f, 1.4, 0);   // Move to top of current box
+    modelMatrixLeft *= transform3D::RotateOZ(glm::radians(30.0f));  // Rotate 30 degrees to the left
+    modelMatrixLeft *= transform3D::Scale(0.8f, 0.8f, 0.8f);       // Scale down
+	modelMatrixLeft *= modelMatrix;  // Multiply with the parent transformation
+
+	RenderMesh(meshes["box"], shaders["VertexNormal"], modelMatrixLeft);
+
+    // Recursive call for left branch
+    RenderRecursiveMesh(modelMatrixLeft, level - 1);
+
+    // Prepare the transformation for the right child
+	glm::mat4 modelMatrixRight = glm::mat4(1.0f);
+    modelMatrixRight *= transform3D::Translate(0.2f, 1.4, 0);     // Move to top of current box
+    modelMatrixRight *= transform3D::RotateOZ(glm::radians(-30.0f));  // Rotate -30 degrees to the right
+    modelMatrixRight *= transform3D::Scale(0.8f, 0.8f, 0.8f);      // Scale down
+	modelMatrixRight *= modelMatrix;  // Multiply with the parent transformation
+
+	RenderMesh(meshes["box"], shaders["VertexNormal"], modelMatrixRight);
+
+    // Recursive call for right branch
+    RenderRecursiveMesh(modelMatrixRight, level - 1);
+}
+
+
 void Lab4::RenderScene() {
     modelMatrix = glm::mat4(1);
     modelMatrix *= transform3D::Translate(-2.5f, 0.5f, -1.5f);
@@ -78,6 +109,31 @@ void Lab4::RenderScene() {
     modelMatrix *= transform3D::RotateOY(angularStepOY);
     modelMatrix *= transform3D::RotateOZ(angularStepOZ);
     RenderMesh(meshes["box"], shaders["VertexNormal"], modelMatrix);
+
+	modelMatrix = glm::mat4(1);
+	modelMatrix *= transform3D::Translate(0.0f, 0.5f, 0);
+	modelMatrix *= transform3D::Scale(1 * 0.5, 3 * 0.5, 1 * 0.5);
+	RenderMesh(meshes["box"], shaders["VertexNormal"], modelMatrix);
+
+	// Render the recursive mesh
+	RenderRecursiveMesh(modelMatrix, 5);
+
+	// First additional mesh: tilted 30 degrees to the left (around Z-axis)
+
+	//glm::mat4 modelMatrixLeft = glm::mat4(1.0f);
+ //   modelMatrixLeft *= transform3D::Translate(-0.2f, 1.0f, 0);  // Move to top of original box
+ //   modelMatrixLeft *= transform3D::RotateOZ(glm::radians(30.0f));  // Rotate 30 degrees
+	//modelMatrixLeft *= transform3D::Scale(0.8, 0.8, 0.8);  // Scale to match original
+ //   modelMatrixLeft *= modelMatrix;
+ //   RenderMesh(meshes["box"], shaders["VertexNormal"], modelMatrixLeft);
+
+ //   // Second additional mesh: tilted 30 degrees to the right (around Z-axis)
+	//glm::mat4 modelMatrixRight = glm::mat4(1.0f);
+	//modelMatrixRight *= transform3D::Translate(0.2f, 1.0f, 0);  // Move to top of original box
+	//modelMatrixRight *= transform3D::RotateOZ(glm::radians(-30.0f));  // Rotate -30 degrees
+	//modelMatrixRight *= transform3D::Scale(0.8, 0.8, 0.8);  // Scale to match original
+	//modelMatrixRight *= modelMatrix;
+	//RenderMesh(meshes["box"], shaders["VertexNormal"], modelMatrixRight);
 }
 
 void Lab4::Update(float deltaTimeSeconds)
