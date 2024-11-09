@@ -19,10 +19,17 @@ namespace m1
         float GetHeight(float tank_x);
 		void RenderTank_1(float deltaTime);
 		void RenderTank_2(float deltaTime);
+		void LaunchExplosionBits(float x, float y, float tank);
+        void UpdateExplosionBits(float deltaTime, float tank);
+        void UpdateRelease(float deltaTime);
+        void UpdateCameraShaking(float deltaTimeSeconds);
+        void RenderTerrain();
+        void UpdateTerrainDeformation();
 		void DrawTrajectoryLine(float cannonX, float cannonY, float cannon_angle, float angle, float deltaTime);
         void LaunchProjectile(float startX, float startY, float cannon_angle, float magnitude);
         void DeformTerrain(float impactX, float impactY, float radius);
-		void UpdateProjectile(float deltaTime, float enemyX);
+		void UpdateProjectile(float deltaTime);
+        void DrawLifeBar(float x, float y, float angle, float tank_life);
         void Update(float deltaTimeSeconds) override;
         void FrameEnd() override;
 
@@ -43,6 +50,8 @@ namespace m1
         float scaleX, scaleY;
         float angularStep;
 		float tank_x1, tank_y1, tank_x2, tank_y2, cannon_angle1, cannon_angle2;
+		bool explosion_tank1 = false, explosion_tank2 = false;
+		float tank1_life, tank2_life;
 
         float initialVelocity = 60.0f;
 		float gravity = 9.8f;
@@ -53,10 +62,33 @@ namespace m1
             bool isActive = false;
 			float angle;
         };
-
         std::vector<Projectile> projectiles;
 
-		bool isSpacePressed = false, isEnterPressed = false;
+        struct Explosion_bit {
+            glm::vec2 position;
+            glm::vec2 velocity;
+            float angle;
+            float scale;
+            float tank;
+        };
+        std::vector<Explosion_bit> Explosion_bits;
+
+		struct Projectile_release_bit {
+			glm::vec2 position;
+			glm::vec2 velocity;
+			float angle;
+			float scale;
+		};
+
+		std::vector<Projectile_release_bit> Projectile_release_bits;
+
+        bool isSpacePressed = false, isEnterPressed = false;
+
+        bool isCameraShaking = false;
+        float shakeDuration = 0.7f;
+        float shakeIntensity = 5.0f;
+        float shakeTime = 0.0f;
+        glm::vec3 originalCameraPosition;
 
         GLboolean moveDiagonal, scaleUp;
     };

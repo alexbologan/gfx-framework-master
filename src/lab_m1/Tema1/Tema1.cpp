@@ -5,7 +5,7 @@
 #include <cmath>
 
 #include "lab_m1/Tema1/transform2D.h"
-#include "lab_m1/lab3/object2D.h"
+#include "lab_m1/Tema1/object2D.h"
 
 using namespace std;
 using namespace m1;
@@ -47,14 +47,19 @@ void Tema1::Init()
 	tank_x1 = 300.1f;
 	tank_y1 = heightMap[tank_x1];
 	cannon_angle1 = 0;
+	tank1_life = 100;
 
 	tank_x2 = 1100.1f;
 	tank_y2 = heightMap[tank_x2];
 	cannon_angle2 = 180;
+	tank2_life = 100;
 
     auto camera = GetSceneCamera();
     camera->SetOrthographic(0, (float)resolution.x, 0, (float)resolution.y, 0.01f, 400);
     camera->SetPosition(glm::vec3(0, 0, 50));
+	originalCameraPosition.x = 0;
+	originalCameraPosition.y = 0;
+	originalCameraPosition.z = 50;
     camera->SetRotation(glm::vec3(0, 0, 0));
     camera->Update();
     GetCameraInput()->SetActive(false);
@@ -84,11 +89,14 @@ void Tema1::Init()
 	Mesh* square1 = object2D::CreateSquare("square1", corner, 4, glm::vec3(1, 1, 1), true);
 	AddMeshToList(square1);
 
-    Mesh* square4 = object2D::CreateSquare("square4", corner, squareSide, glm::vec3(0.1294, 0.2588, 0.6941), true);
+    Mesh* square4 = object2D::CreateSquare("square4", corner, 1500, glm::vec3(0.1294, 0.2588, 0.6941), true);
     AddMeshToList(square4);
 
     Mesh* square5 = object2D::CreateSquare("square5", corner, squareSide, glm::vec3(0.4980, 0.6941, 0.1294), true);
     AddMeshToList(square5);
+
+	Mesh* release_bit = object2D::CreateSquare("release_bit", corner, 6, glm::vec3(0, 0, 0), true);
+	AddMeshToList(release_bit);
 
 	// Create the meshes for the first tank
 	Mesh* bottomTrapezoid_1 = object2D::CreateTrapezoid("bottomTrapezoid_1",
@@ -105,6 +113,9 @@ void Tema1::Init()
 	Mesh* cannon_1 = object2D::CreateRectangle("cannon_1", corner, 40, 4, glm::vec3(0, 0, 0), true);
 	AddMeshToList(cannon_1);
 
+	Mesh* explosion_bits_1 = object2D::CreateSquare("explosion_bits_1", corner, 15, glm::vec3(0.8039, 0.6823, 0.5333), true);
+	AddMeshToList(explosion_bits_1);
+
 
 	// Create the meshes for the second tank
 	Mesh* bottomTrapezoid_2 = object2D::CreateTrapezoid("bottomTrapezoid_2",
@@ -120,6 +131,9 @@ void Tema1::Init()
 
 	Mesh* cannon_2 = object2D::CreateRectangle("cannon_2", corner, 40, 4, glm::vec3(0, 0, 0), true);
 	AddMeshToList(cannon_2);
+
+	Mesh* explosion_bits_2 = object2D::CreateSquare("explosion_bits_2", corner, 15, glm::vec3(0.3059, 0.3882, 0.2275), true);
+	AddMeshToList(explosion_bits_2);
 
 	Mesh* projectile = object2D::CreateDisk("projectile", corner, 5, glm::vec3(0, 0, 0));
 	AddMeshToList(projectile);
@@ -184,6 +198,16 @@ void Tema1::LaunchProjectile(float x, float y, float cannon_angle, float angle) 
 	newProjectile.angle = angle;
 	newProjectile.isActive = true;
 	projectiles.push_back(newProjectile);
+
+	// Animation for launching the projectile
+	for (float i = -5; i < 5; i+=0.5) {
+		Projectile_release_bit newProjectileReleaseBit;
+		newProjectileReleaseBit.position = glm::vec2(x, y);
+		newProjectileReleaseBit.velocity = glm::vec2(cos(cannon_angle + glm::radians(i * 10)), sin(cannon_angle + glm::radians(i * 10))) * 100.0f;
+		newProjectileReleaseBit.angle = angle + glm::radians(i * 10);
+		newProjectileReleaseBit.scale = 1;
+		Projectile_release_bits.push_back(newProjectileReleaseBit);
+	}
 }
 
 void Tema1::DeformTerrain(float impactX, float impactY, float radius) {
@@ -212,7 +236,7 @@ void Tema1::DeformTerrain(float impactX, float impactY, float radius) {
 	}
 }
 
-void Tema1::UpdateProjectile(float deltaTime, float enemyX) {
+void Tema1::UpdateProjectile(float deltaTime) {
 	for (auto it = projectiles.begin(); it != projectiles.end();) {
 		if (it->isActive) {
 			it->position += it->velocity * deltaTime * 5.0f;
@@ -239,21 +263,85 @@ void Tema1::UpdateProjectile(float deltaTime, float enemyX) {
 				continue;
 			}
 
-			if (distance(it->position, glm::vec2(enemyX, GetHeight(enemyX))) < 50) {
-				//DeformTerrain(it->position.x, it->position.y, 40);
+			if (distance(it->position, glm::vec2(tank_x1, GetHeight(tank_x1))) < 48 && tank1_life > 0) {
+				tank1_life -= 10;
+				// Tank explosion
+				if (tank1_life <= 0) {
+					explosion_tank1 = true;
+					isCameraShaking = true;
+				}
+				it = projectiles.erase(it);
+				continue;
+			}
+
+			if (distance(it->position, glm::vec2(tank_x2, GetHeight(tank_x2))) < 48 && tank2_life > 0) {
+				tank2_life -= 10;
+				// Tank explosion
+				if (tank2_life <= 0) {
+					explosion_tank2 = true;
+					isCameraShaking = true;
+				}
 				it = projectiles.erase(it);
 				continue;
 			}
 			
 			float terrainHeight = GetHeight(it->position.x);
 			if (terrainHeight > it->position.y) {
-				DeformTerrain(it->position.x, it->position.y, 40);
+				DeformTerrain(it->position.x, it->position.y, 50);
 				it = projectiles.erase(it);
 				continue;
 			}
 		}
 		++it;
 	}
+}
+
+void Tema1::DrawLifeBar(float x, float y, float angle, float tank_life) {
+	// Draw life bar border
+	// Right
+	modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x + 50, y + 60);
+	modelMatrix *= transform2D::Translate(-50, -60);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Translate(50, 60);
+	modelMatrix *= transform2D::Scale(0.5, 4);
+	RenderMesh2D(meshes["square1"], shaders["VertexColor"], modelMatrix);
+
+	// Bottom
+	modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x - 50, y + 60);
+	modelMatrix *= transform2D::Translate(50, -60);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Translate(-50, 60);
+	modelMatrix *= transform2D::Scale(25, 0.5);
+	RenderMesh2D(meshes["square1"], shaders["VertexColor"], modelMatrix);
+
+	// Left
+	modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x - 50, y + 60);
+	modelMatrix *= transform2D::Translate(50, -60);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Translate(-50, 60);
+	modelMatrix *= transform2D::Scale(0.5, 4);
+	RenderMesh2D(meshes["square1"], shaders["VertexColor"], modelMatrix);
+
+	// Top
+	modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x - 50, y + 75);
+	modelMatrix *= transform2D::Translate(50, -75);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Translate(-50, 75);
+	modelMatrix *= transform2D::Scale(25, 0.5);
+	RenderMesh2D(meshes["square1"], shaders["VertexColor"], modelMatrix);
+
+	// Draw life bar
+	modelMatrix = glm::mat3(1);
+	modelMatrix *= transform2D::Translate(x - 50, y + 60);
+	modelMatrix *= transform2D::Translate(50, -60);
+	modelMatrix *= transform2D::Rotate(angle);
+	modelMatrix *= transform2D::Translate(-50, 60);
+	modelMatrix *= transform2D::Scale(tank_life / 4, 4);
+	RenderMesh2D(meshes["square1"], shaders["VertexColor"], modelMatrix);
 }
 
 void Tema1::RenderTank_1(float deltaTime) {
@@ -307,7 +395,6 @@ void Tema1::RenderTank_1(float deltaTime) {
     modelMatrix *= transform2D::Translate(0, 2);
 	modelMatrix *= transform2D::Rotate(glm::radians(cannon_angle1) - angle);
     modelMatrix *= transform2D::Translate(0, -2);
-
     RenderMesh2D(meshes["cannon_1"], shaders["VertexColor"], modelMatrix);
 
 	
@@ -321,7 +408,8 @@ void Tema1::RenderTank_1(float deltaTime) {
 		isSpacePressed = false;
 	}
 
-	UpdateProjectile(deltaTime, tank_x2);
+	UpdateProjectile(deltaTime);
+	UpdateRelease(deltaTime);
 
 	for (Projectile& projectile : projectiles) {
 		if (projectile.isActive) {
@@ -335,13 +423,7 @@ void Tema1::RenderTank_1(float deltaTime) {
 	DrawTrajectoryLine(tip_pos_x, tip_pos_y, glm::radians(cannon_angle1), angle, deltaTime);
 
 	// Draw life bar
-	modelMatrix = glm::mat3(1);
-	modelMatrix *= transform2D::Translate(x - 50, y + 60);
-	modelMatrix *= transform2D::Translate(50, -60);
-	modelMatrix *= transform2D::Rotate(angle);
-	modelMatrix *= transform2D::Translate(-50, 60);
-	modelMatrix *= transform2D::Scale(25, 4);
-	RenderMesh2D(meshes["square1"], shaders["VertexColor"], modelMatrix);
+	DrawLifeBar(x, y, angle, tank1_life);
 }
 
 void Tema1::RenderTank_2(float deltaTime) {
@@ -395,7 +477,6 @@ void Tema1::RenderTank_2(float deltaTime) {
 	modelMatrix *= transform2D::Translate(0, 2);
 	modelMatrix *= transform2D::Rotate(glm::radians(cannon_angle2) - angle);
 	modelMatrix *= transform2D::Translate(0, -2);
-
 	RenderMesh2D(meshes["cannon_2"], shaders["VertexColor"], modelMatrix);
 
 	float tip_pos_x = cos(glm::radians(cannon_angle2)) * 40 + cannon_pos.x;
@@ -406,7 +487,8 @@ void Tema1::RenderTank_2(float deltaTime) {
 		isEnterPressed = false;
 	}
 
-	UpdateProjectile(deltaTime, tank_x1);
+	UpdateProjectile(deltaTime);
+	UpdateRelease(deltaTime);
 
 	for (Projectile& projectile : projectiles) {
 		if (projectile.isActive) {
@@ -417,32 +499,202 @@ void Tema1::RenderTank_2(float deltaTime) {
 	}
 
 	DrawTrajectoryLine(tip_pos_x, tip_pos_y, glm::radians(cannon_angle2), angle, deltaTime);
+
+	// Draw life bar
+	DrawLifeBar(x, y, angle, tank2_life);
 }
 
+void Tema1::LaunchExplosionBits(float x, float y, float tank) {
+	for (float i = 0; i < 360; ++i) {
+		Explosion_bit newExplosionBit{};
+		newExplosionBit.position = glm::vec2(x, y);
+		newExplosionBit.velocity = glm::vec2(cos(glm::radians(i)), sin(glm::radians(i))) * 100.0f;
+		newExplosionBit.angle = glm::radians(i);
+		newExplosionBit.scale = 1;
+		newExplosionBit.tank = tank;
+		Explosion_bits.push_back(newExplosionBit);
+	}
+}
+
+void Tema1::UpdateExplosionBits(float deltaTime, float tank) {
+	for (auto it = Explosion_bits.begin(); it != Explosion_bits.end();) {
+		if (it->scale > 0) {
+			it->position += it->velocity * deltaTime * 2.0f;
+
+			it->velocity.y -= gravity * deltaTime * 2.0f;
+
+			it->scale -= 0.5f * deltaTime * 2.0f;
+
+			if (it->position.x < 0) {
+				it->position.x = 0;
+				it->velocity.x = -it->velocity.x;
+			}
+
+			if (it->position.x > 1280) {
+				it->position.x = 1280;
+				it->velocity.x = -it->velocity.x;
+			}
+
+			if (it->scale <= 0) {
+				it = Explosion_bits.erase(it);
+				continue;
+			}
+		}
+		++it;
+	}
+
+	for (Explosion_bit& explosionBit : Explosion_bits) {
+		if (explosionBit.scale > 0) {
+			glm::mat3 modelMatrix = glm::mat3(1);
+			modelMatrix *= transform2D::Translate(explosionBit.position.x + rand() % 20, explosionBit.position.y + rand() % 20);
+			modelMatrix *= transform2D::Rotate(explosionBit.angle);
+			modelMatrix *= transform2D::Scale(explosionBit.scale, explosionBit.scale);
+			if (explosionBit.tank == 1) {
+				RenderMesh2D(meshes["explosion_bits_1"], shaders["VertexColor"], modelMatrix);
+			}
+			else {
+				RenderMesh2D(meshes["explosion_bits_2"], shaders["VertexColor"], modelMatrix);
+			}
+		}
+	}
+}
+
+void Tema1::UpdateRelease(float deltaTime) {
+	for (auto it = Projectile_release_bits.begin(); it != Projectile_release_bits.end();) {
+		if (it->scale > 0) {
+			it->position += it->velocity * deltaTime * 2.0f;
+
+			it->velocity.y -= gravity * deltaTime * 2.0f;
+
+			it->scale -= 0.5f * deltaTime * 4.f;
+
+			if (it->position.x < 0) {
+				it->position.x = 0;
+				it->velocity.x = -it->velocity.x;
+			}
+
+			if (it->position.x > 1280) {
+				it->position.x = 1280;
+				it->velocity.x = -it->velocity.x;
+			}
+
+			if (it->scale <= 0) {
+				it = Projectile_release_bits.erase(it);
+				continue;
+			}
+		}
+		++it;
+	}
+
+	for (Projectile_release_bit& projectileReleaseBit : Projectile_release_bits) {
+		if (projectileReleaseBit.scale > 0) {
+			glm::mat3 modelMatrix = glm::mat3(1);
+			modelMatrix *= transform2D::Translate(projectileReleaseBit.position.x + rand() % 2, projectileReleaseBit.position.y + rand() % 2);
+			modelMatrix *= transform2D::Rotate(projectileReleaseBit.angle);
+			modelMatrix *= transform2D::Scale(projectileReleaseBit.scale, projectileReleaseBit.scale);
+			RenderMesh2D(meshes["release_bit"], shaders["VertexColor"], modelMatrix);
+		}
+	}
+}
+
+void Tema1::UpdateCameraShaking(float deltaTimeSeconds) {
+	float offsetX = (static_cast <float> (rand()) / static_cast <float> (RAND_MAX) - 0.5f) * shakeIntensity;
+	float offsetY = (static_cast <float> (rand()) / static_cast <float> (RAND_MAX) - 0.5f) * shakeIntensity;
+
+	auto camera = GetSceneCamera();
+	camera->SetPosition(glm::vec3(originalCameraPosition.x + offsetX, originalCameraPosition.y + offsetY, 50));
+	camera->Update();
+
+	shakeTime += deltaTimeSeconds;
+
+	if (shakeTime >= shakeDuration) {
+		isCameraShaking = false;
+		shakeTime = 0.0f;
+
+		camera->SetPosition(originalCameraPosition);
+		camera->Update();
+	}
+}
+
+void Tema1::RenderTerrain() {
+	for (float i = 0; i < heightMap.size() - 1; ++i) {
+		float x1 = i;
+		float y1 = heightMap[i];
+		float x2 = (i + 1);
+		float y2 = heightMap[i + 1];
+
+		glm::mat3 modelMatrix = glm::mat3(1);
+		modelMatrix *= transform2D::Translate(x1, y1 + 300);
+		modelMatrix *= transform2D::Shear(0, (y2 - y1) / (x2 - x1));
+		modelMatrix *= transform2D::Scale((x2 - x1) / 100, -10);
+
+		RenderMesh2D(meshes["square5"], shaders["VertexColor"], modelMatrix);
+	}
+}
+
+void Tema1::UpdateTerrainDeformation() {
+	std::vector<float> newHeightMap(heightMap.size());
+
+	for (size_t i = 0; i < heightMap.size(); ++i) {
+		float sum = 0.0f;
+		int count = 0;
+
+		for (float j = -3; j <= 3; ++j) {
+			float neighborIndex = i + j;
+
+			if (neighborIndex >= 0 && neighborIndex < 1280) {
+				sum += heightMap[neighborIndex];
+				count++;
+			}
+		}
+
+		float avgH = sum / count;
+
+		if (abs(heightMap[i] - avgH) > 0.25) {
+			newHeightMap[i] = heightMap[i] / 2 + avgH / 2;
+		}
+		else {
+			newHeightMap[i] = heightMap[i];
+		}
+	}
+	heightMap = newHeightMap;
+}
 
 void Tema1::Update(float deltaTimeSeconds)
 {
-    for (float i = 0; i < heightMap.size() - 1; ++i) {
-        float x1 = i;
-        float y1 = heightMap[i];
-        float x2 = (i + 1);
-        float y2 = heightMap[i + 1];
+	if (isCameraShaking) {
+		UpdateCameraShaking(deltaTimeSeconds);
+	}
 
-        glm::mat3 modelMatrix = glm::mat3(1);
-        modelMatrix *= transform2D::Translate(x1, y1 + 300);
-		modelMatrix *= transform2D::Shear(0, (y2 - y1) / (x2 - x1));
-        modelMatrix *= transform2D::Scale((x2 - x1) / 100, -10);
-        
-        RenderMesh2D(meshes["square5"], shaders["VertexColor"], modelMatrix);
-    }
+	UpdateTerrainDeformation();
 
-	RenderTank_1(deltaTimeSeconds);
+	RenderTerrain();
 
-	RenderTank_2(deltaTimeSeconds);
+	if (tank1_life > 0) {
+		RenderTank_1(deltaTimeSeconds);
+	}
 
-    modelMatrix = glm::mat3(1);
-    modelMatrix *= transform2D::Scale(100, 100);
-    RenderMesh2D(meshes["square4"], shaders["VertexColor"], modelMatrix);
+	if (explosion_tank1) {
+		LaunchExplosionBits(tank_x1, GetHeight(tank_x1), 1);
+		explosion_tank1 = false;
+	}
+	UpdateExplosionBits(deltaTimeSeconds, 1);
+
+	if (tank2_life > 0) {
+		RenderTank_2(deltaTimeSeconds);
+	}
+
+	if (explosion_tank2) {
+		LaunchExplosionBits(tank_x2, GetHeight(tank_x2), 2);
+		explosion_tank2 = false;
+	}
+	UpdateExplosionBits(deltaTimeSeconds, 2);
+
+	// Background
+	{
+		modelMatrix = glm::mat3(1);
+		RenderMesh2D(meshes["square4"], shaders["VertexColor"], modelMatrix);
+	}
 }
 
 
