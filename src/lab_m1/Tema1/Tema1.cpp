@@ -3,12 +3,15 @@
 #include <vector>
 #include <iostream>
 #include <cmath>
+#include <thread>
+#include <chrono>
 
 #include "lab_m1/Tema1/transform2D.h"
 #include "lab_m1/Tema1/object2D.h"
 
 using namespace std;
 using namespace m1;
+using namespace irrklang;
 
 
 /*
@@ -16,6 +19,7 @@ using namespace m1;
  *  and the order in which they are called, see `world.cpp`.
  */
 
+ISoundEngine* SoundEngine = createIrrKlangDevice();
 
 Tema1::Tema1()
 {
@@ -36,12 +40,13 @@ float TerrainFunction(float x) {
 
 void Tema1::Init()
 {
+	SoundEngine->setSoundVolume(0.1f);
+	SoundEngine->play2D("media/Tanki_Online-Soundtrack.mp3", true);
     glm::ivec2 resolution = window->GetResolution();
 	printf("Resolution: %d %d\n", resolution.x, resolution.y);
-    //heightMap(resolution.x / 10);  // Adjust as needed
 
-    for (float x = 0; x <= resolution.x; x += 1) {  // Adjust step as needed
-        heightMap.push_back(10 * TerrainFunction(x/2));  // Store sampled height
+    for (float x = 0; x <= resolution.x; x += 1) {
+        heightMap.push_back(10 * TerrainFunction(x/2));
     }
 
 	tank_x1 = 300.1f;
@@ -197,6 +202,7 @@ void Tema1::LaunchProjectile(float x, float y, float cannon_angle, float angle) 
 	newProjectile.velocity = glm::vec2(cos(cannon_angle), sin(cannon_angle)) * initialVelocity;
 	newProjectile.angle = angle;
 	newProjectile.isActive = true;
+	newProjectile.shell_drop_time = 0.7f;
 	projectiles.push_back(newProjectile);
 
 	// Animation for launching the projectile
@@ -243,17 +249,27 @@ void Tema1::UpdateProjectile(float deltaTime) {
 
 			it->velocity.y -= gravity * deltaTime * 5.0f;
 
+			it->shell_drop_time -= deltaTime;
+
+			if (it->shell_drop_time <= 0) {
+				
+				it->shell_drop_time = 5000;
+			}
+
 			if (it->position.x < 0) {
+				SoundEngine->play2D("media/Ricochet.mp3", false);
 				it->position.x = 0;
 				it->velocity.x = -it->velocity.x;
 			}
 
 			if (it->position.x > 1280) {
+				SoundEngine->play2D("media/Ricochet.mp3", false);
 				it->position.x = 1280;
 				it->velocity.x = -it->velocity.x;
 			}
 
 			if (it->position.y > 720) {
+				SoundEngine->play2D("media/Ricochet.mp3", false);
 				it->position.y = 720;
 				it->velocity.y = -it->velocity.y;
 			}
@@ -269,6 +285,10 @@ void Tema1::UpdateProjectile(float deltaTime) {
 				if (tank1_life <= 0) {
 					explosion_tank1 = true;
 					isCameraShaking = true;
+					SoundEngine->play2D("media/tank_destroyed.wav", false);
+				}
+				else {
+					SoundEngine->play2D("media/tank_hit.wav", false);
 				}
 				it = projectiles.erase(it);
 				continue;
@@ -280,6 +300,10 @@ void Tema1::UpdateProjectile(float deltaTime) {
 				if (tank2_life <= 0) {
 					explosion_tank2 = true;
 					isCameraShaking = true;
+					SoundEngine->play2D("media/tank_destroyed.wav", false);
+				}
+				else {
+					SoundEngine->play2D("media/tank_hit.wav", false);
 				}
 				it = projectiles.erase(it);
 				continue;
@@ -287,6 +311,7 @@ void Tema1::UpdateProjectile(float deltaTime) {
 			
 			float terrainHeight = GetHeight(it->position.x);
 			if (terrainHeight > it->position.y) {
+				SoundEngine->play2D("media/terrain_hit.wav", false);
 				DeformTerrain(it->position.x, it->position.y, 50);
 				it = projectiles.erase(it);
 				continue;
@@ -409,7 +434,7 @@ void Tema1::RenderTank_1(float deltaTime) {
 	}
 
 	UpdateProjectile(deltaTime);
-	UpdateRelease(deltaTime);
+	UpdateReleaseProjectilesAnimation(deltaTime);
 
 	for (Projectile& projectile : projectiles) {
 		if (projectile.isActive) {
@@ -488,7 +513,7 @@ void Tema1::RenderTank_2(float deltaTime) {
 	}
 
 	UpdateProjectile(deltaTime);
-	UpdateRelease(deltaTime);
+	UpdateReleaseProjectilesAnimation(deltaTime);
 
 	for (Projectile& projectile : projectiles) {
 		if (projectile.isActive) {
@@ -525,17 +550,7 @@ void Tema1::UpdateExplosionBits(float deltaTime, float tank) {
 
 			it->scale -= 0.5f * deltaTime * 2.0f;
 
-			if (it->position.x < 0) {
-				it->position.x = 0;
-				it->velocity.x = -it->velocity.x;
-			}
-
-			if (it->position.x > 1280) {
-				it->position.x = 1280;
-				it->velocity.x = -it->velocity.x;
-			}
-
-			if (it->scale <= 0) {
+			if (it->scale <= 0 || it->position.y < 0 || it->position.y > 720 || it->position.x < 0 || it->position.x > 1280) {
 				it = Explosion_bits.erase(it);
 				continue;
 			}
@@ -559,7 +574,7 @@ void Tema1::UpdateExplosionBits(float deltaTime, float tank) {
 	}
 }
 
-void Tema1::UpdateRelease(float deltaTime) {
+void Tema1::UpdateReleaseProjectilesAnimation(float deltaTime) {
 	for (auto it = Projectile_release_bits.begin(); it != Projectile_release_bits.end();) {
 		if (it->scale > 0) {
 			it->position += it->velocity * deltaTime * 2.0f;
@@ -722,6 +737,22 @@ void Tema1::OnInputUpdate(float deltaTime, int mods)
 			tank_x1 += 90 * deltaTime;
 		}
 	}
+
+	if (tank1_life > 0) {
+		if (window->KeyHold(GLFW_KEY_A) && window->KeyHold(GLFW_KEY_D)) {
+			if (is_moving_tank1 == 1) {
+				tank1_moving->stop();
+				is_moving_tank1 = -1;
+			}
+		}
+		else if (window->KeyHold(GLFW_KEY_A) || window->KeyHold(GLFW_KEY_D)) {
+			if (is_moving_tank1 == -1) {
+				tank1_moving = SoundEngine->play2D("media/tank_moving.mp3", true, false, true);
+				is_moving_tank1 = 1;
+			}
+		}
+	}
+
 	if (window->KeyHold(GLFW_KEY_W)) {
 		//if (cannon_angle1 < 180) {
 			cannon_angle1 += 50 * deltaTime;
@@ -744,6 +775,21 @@ void Tema1::OnInputUpdate(float deltaTime, int mods)
 			tank_x2 += 90 * deltaTime;
 		}
 	}
+	if (tank2_life > 0) {
+		if (window->KeyHold(GLFW_KEY_LEFT) && window->KeyHold(GLFW_KEY_RIGHT)) {
+			if (is_moving_tank2 == 1) {
+				tank2_moving->stop();
+				is_moving_tank2 = -1;
+			}
+		}
+		else if (window->KeyHold(GLFW_KEY_LEFT) || window->KeyHold(GLFW_KEY_RIGHT)) {
+			if (is_moving_tank2 == -1) {
+				tank2_moving = SoundEngine->play2D("media/tank_moving.mp3", true, false, true);
+				is_moving_tank2 = 1;
+			}
+		}
+	}
+
 	if (window->KeyHold(GLFW_KEY_UP)) {
 		//if (cannon_angle2 < 180) {
 			cannon_angle2 += 50 * deltaTime;
@@ -759,12 +805,16 @@ void Tema1::OnInputUpdate(float deltaTime, int mods)
 
 void Tema1::OnKeyPress(int key, int mods)
 {
-	if (key == GLFW_KEY_SPACE) {
+	if (key == GLFW_KEY_SPACE && tank1_life > 0) {
 		isSpacePressed = true;
+		SoundEngine->play2D("media/cannon_attack.wav", false);
+		SoundEngine->play2D("media/cannon_shell_drop.mp3", false);
 	}
 
-	if (key == GLFW_KEY_ENTER) {
+	if (key == GLFW_KEY_ENTER && tank2_life > 0) {
 		isEnterPressed = true;
+		SoundEngine->play2D("media/cannon_attack.wav", false);
+		SoundEngine->play2D("media/cannon_shell_drop.mp3", false);
 	}
 }
 
@@ -772,6 +822,19 @@ void Tema1::OnKeyPress(int key, int mods)
 void Tema1::OnKeyRelease(int key, int mods)
 {
     // Add key release event
+	if (key == GLFW_KEY_D || key == GLFW_KEY_A) {
+		if (is_moving_tank1 == 1) {
+			tank1_moving->stop();
+			is_moving_tank1 = -1;
+		}
+	}
+
+	if (key == GLFW_KEY_RIGHT || key == GLFW_KEY_LEFT) {
+		if (is_moving_tank2 == 1) {
+			tank2_moving->stop();
+			is_moving_tank2 = -1;
+		}
+	}
 }
 
 

@@ -1,8 +1,11 @@
 #pragma once
 
 #include "components/simple_scene.h"
+#include "include/irrKlang.h"
 
 #include <vector>
+
+using namespace irrklang;
 
 namespace m1
 {
@@ -21,7 +24,7 @@ namespace m1
 		void RenderTank_2(float deltaTime);
 		void LaunchExplosionBits(float x, float y, float tank);
         void UpdateExplosionBits(float deltaTime, float tank);
-        void UpdateRelease(float deltaTime);
+        void UpdateReleaseProjectilesAnimation(float deltaTime);
         void UpdateCameraShaking(float deltaTimeSeconds);
         void RenderTerrain();
         void UpdateTerrainDeformation();
@@ -61,6 +64,7 @@ namespace m1
             glm::vec2 velocity;
             bool isActive = false;
 			float angle;
+            float shell_drop_time;
         };
         std::vector<Projectile> projectiles;
 
@@ -91,5 +95,8 @@ namespace m1
         glm::vec3 originalCameraPosition;
 
         GLboolean moveDiagonal, scaleUp;
+
+        ISound* tank1_moving, * tank2_moving;
+		float is_moving_tank1 = -1, is_moving_tank2 = -1;
     };
 }   // namespace m1
